@@ -27,7 +27,7 @@ cleandat <- function(path){
 }
 
 
-getStats <- function(datList, log=T){
+getStats <- function(datList, log=T, plot=T, useZeros=T){
 	datList <- c(datList, list(both=rbind(datList$open, datList$closed)))
 	res <- datList
 	seedcounttype <- names(datList[[1]])[9:11]
@@ -42,12 +42,17 @@ getStats <- function(datList, log=T){
 		useRows <- !is.na(data$mass)&!is.na(data$seedsTotal)
 		data <- data[useRows,]
 		stats <- data.frame()
-		mass <- data$mass
-		if(log){mass <- log(data$mass*10^5)}
 		for (seeds in seedcounttype){
+			mass <- data$mass
 			seedcount <- data[,seeds]
 			xby <- 0.001
+			if(!useZeros){
+				nozero <- seedcount!=0
+				seedcount <- seedcount[nozero]
+				mass <- mass[nozero]
+				}
 			if(log){
+				mass <- log(mass*10^5)
 				seedcount <- log(seedcount+1)
 				xby <- 0.1
 			}
@@ -61,14 +66,15 @@ getStats <- function(datList, log=T){
 
 			p_value <- summary(trend)$coefficients[2,4]
 			rsq <- summary(trend)$r.squared
-			title <- paste0(unique(data$S), collapse="")
-			title <- unique(paste0(title, data$Sp))
-			title <- paste(title, trt, seeds, sep="-")
-			plot(mass, seedcount, xlab = "mass", ylab = "seeds total", ylim=c(0,maxcount), xlim=c(0,maxmass),col="darkblue", pch=21, bg="lightgrey")
-			title(main=title, line=0.12, cex.main=1.19)
-			lines(x, y, col="darkgrey")
-			text(0,maxcount * .95, labels = paste("y =", round(m, digits = 2), "x +", round(b, digits = 2), "; p =", signif(p_value,3), "; \nR^2 =", signif(rsq,3), "; N=",N), adj = 0)
-	
+			if(plot){
+				title <- paste0(unique(data$S), collapse="")
+				title <- unique(paste0(title, data$Sp))
+				title <- paste(title, trt, seeds, sep="-")
+				plot(mass, seedcount, xlab = "mass", ylab = "seeds total", ylim=c(0,maxcount), xlim=c(0,maxmass),col="darkblue", pch=21, bg="lightgrey")
+				title(main=title, line=0.12, cex.main=1.19)
+				lines(x, y, col="darkgrey")
+				text(0,maxcount * .95, labels = paste("y =", round(m, digits = 2), "x +", round(b, digits = 2), "; p =", signif(p_value,3), "; \nR^2 =", signif(rsq,3), "; N=",N), adj = 0)
+			}	
 			seedstat <- c(m=m, b=b, p=p_value, R=rsq, N=N)
 			stats <- rbind(stats,seedstat)	
 		}
@@ -76,7 +82,45 @@ getStats <- function(datList, log=T){
 		rownames(stats) <- seedcounttype
 		res[[trt]] <- stats
 	}
+	res$max <- c(count=maxcount, mass=maxmass)
 	return(res)
+}
+
+plotSeeds <- function(dat,stats, log=T){
+	stats <- stats[-3]
+	data <- rbind(dat$open, dat$closed)
+	mass <- data$mass
+	if(log){mass <- log(data$mass*10^5)}
+	seedcounttype <- rownames(stats[[1]])
+	for (seeds in seedcounttype){
+		seedcount <- data[,seeds]
+		xby <- 0.001
+		if(log){
+			seedcount <- log(seedcount+1)
+			xby <- 0.1
+		}
+		title <- paste0(unique(data$S), collapse="")
+		title <- unique(paste0(title, data$Sp))
+		title <- paste(title,seeds, sep="-")
+		plot(0,type="n",xlab = "mass", ylab = "seeds total", ylim=c(0,stats$max["count"]), xlim=c(0,stats$max["mass"]))
+		title(main=title, line=0.12, cex.main=1.19)
+		cols <- c("darkgreen", "darkred"); names(cols) <- names(dat)
+		h <- c(.5,1.5); names(h) <- names(dat)
+		for (trt in names(dat)){
+			points(mass[data$trt==trt], seedcount[data$trt==trt], col=cols[trt], pch=21, bg="lightgrey",lwd=1.5)
+			m <- stats[[trt]][seeds,"m"]
+			b <- stats[[trt]][seeds,"b"]
+			xran <- range(mass[data$trt==trt], na.rm=T)
+			x <- seq(xran[1], xran[2], xby)
+			y <- (m * x) + b
+			N <- stats[[trt]][seeds,"N"]			
+			p_value <- stats[[trt]][seeds,"p"]
+			rsq <- stats[[trt]][seeds,"R"]
+			
+			lines(x, y, col=cols[trt], lty=2)
+			text(0,stats$max["count"]-h[trt], labels = paste("y =", round(m, digits = 2), "x +", round(b, digits = 2), "; p =", signif(p_value,3), "; \nR^2 =", signif(rsq,3), "; N=",N), adj = 0, col=cols[trt])
+		}	
+	}
 }
 
 predSeeds <- function(dat,stats,seeds="seedsTotal", trt="both", pred=T){
@@ -105,19 +149,19 @@ fig_loc <- "./figures/"
 fig101124 <- paste0(fig_loc,"fig101124.pdf")
 fig101524 <- paste0(fig_loc,"fig101524.pdf")
 file_names <- list.files(data_location)
-file_names <- file_names[-4]
+#file_names <- file_names[-4]
 
 res <- as.list(file_names)
 names(res) <- file_names
 datList <- res
-pdf(fig101524)
-par(mfrow=c(3,3), mar=c(1,1.5,1.5,0), oma=c(1,1,.5,.5), mgp=c(2,.25,0), tcl=-.2, xpd=F)
+#pdf(fig101524)
+#par(mfrow=c(3,3), mar=c(1,1.5,1.5,0), oma=c(1,1,.5,.5), mgp=c(2,.25,0), tcl=-.2, xpd=F)
 for (f in file_names){
 	path <- paste0(data_location,f)
 	#mass<-ifelse(f==file_names[4],F,T)
 	datList[[f]] <- cleandat(path)
 	if(!f==file_names[4]){
-		res[[f]] <- getStats(datList[[f]])
+		res[[f]] <- getStats(datList[[f]], plot=F, useZeros=T)
 	} else{res[[f]] <- NA}
 	#res[[f]] <- ifelse(f==file_names[4],NA,getStats(datList[[f]]))
 };
@@ -125,10 +169,19 @@ names(res) <- substring(file_names,13,nchar(file_names)-4)
 names(datList) <- names(res)
 datList$CLAAMO$open <- rbind(datList$GLTCCLAAMO$open, datList$WWCLAAMO$open)
 datList$CLAAMO$closed <- rbind(datList$GLTCCLAAMO$closed, datList$WWCLAAMO$closed)
-res$CLAAMO <- getStats(datList$CLAAMO)
-dev.off()
+res$CLAAMO <- getStats(datList$CLAAMO, plot=T, useZeros=T)
+#dev.off()
 #both seeds good is best
 #probably should combine GLTC and WW
+
+fig101524_2 <- paste0(fig_loc,"fig101524_2.pdf")
+pdf(fig101524_2,height=5.5,width=8)
+par(mfrow=c(2,3), mar=c(1.5,1.5,1.5,0), oma=c(1.5,1.5,.5,.5), mgp=c(2,.25,0), tcl=-.2, xpd=F)
+for (sp in c("CLAAMO","GLTCCLAPUR")){
+	plotSeeds(datList[[sp]],res[[sp]])
+}
+title(xlab="log(total seed mass * 10^5)",ylab="log(seed counts + 1)",outer=T,line=.4,cex.lab=1.3);dev.off()
+
 
 str(datList)
 #combine open and closed
