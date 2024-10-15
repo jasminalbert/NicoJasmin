@@ -7,7 +7,7 @@ f1 <- paste0(data_path, "SeedsData - GLTCCLAAMO.csv")
 f2 <- paste0(data_path, "SeedsData - WWCLAAMO.csv")
 f3 <- paste0(data_path, "SeedsData - GLTCCLAPUR.csv")
 
-stats <- data.frame(NA)
+stats <- data.frame()
 
 filenames <- c(f1, f2, f3)
 
@@ -43,10 +43,10 @@ for (f in names(filenames)) {
   
   #filling data frame
 
-  stats[i,]$m <- m
-  stats[i,]$b <- b
-  stats[i,]$p_val <- p_val
-  stats[i,]$rsq <- rsq
+  stats[f,"m"] <- m
+  stats[f,"b"] <- b
+  stats[f,"p_value"] <- p_val
+  stats[f,"R_sqaured"] <- rsq
   
   
 }
