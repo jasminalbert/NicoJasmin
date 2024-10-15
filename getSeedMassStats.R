@@ -27,34 +27,47 @@ cleandat <- function(path){
 }
 
 
-getStats <- function(datList){
+getStats <- function(datList, log=T){
 	datList <- c(datList, list(both=rbind(datList$open, datList$closed)))
 	res <- datList
 	seedcounttype <- names(datList[[1]])[9:11]
+	allcounts <- unlist(lapply(datList, function(X){X[,seedcounttype]}))
+	maxcount <- max(allcounts, na.rm=T)
+	maxcount <- ifelse(log, log(maxcount+1), maxcount)
+	allmass <- unlist(lapply(datList, function(X){X$mass}))
+	maxmass <- max(allmass, na.rm=T)
+	maxmass <- ifelse(log, log(maxmass*10^5), maxmass)
 	for (trt in names(datList)){
 		data <- datList[[trt]]
 		useRows <- !is.na(data$mass)&!is.na(data$seedsTotal)
 		data <- data[useRows,]
 		stats <- data.frame()
+		mass <- data$mass
+		if(log){mass <- log(data$mass*10^5)}
 		for (seeds in seedcounttype){
-			#seedres <- seeds
-			trend <- lm(data[,seeds]~data$mass)
-			m <- trend$coefficients["data$mass"]
+			seedcount <- data[,seeds]
+			xby <- 0.001
+			if(log){
+				seedcount <- log(seedcount+1)
+				xby <- 0.1
+			}
+			trend <- lm(seedcount~mass)
+			m <- trend$coefficients["mass"]
 			b <- trend$coefficients["(Intercept)"]
-			xran <- range(data$mass)
-			x <- seq(xran[1], xran[2], 0.001)
+			xran <- range(mass)
+			x <- seq(xran[1], xran[2], xby)
 			y <- (m * x) + b
-			N <- nrow(data)
+			N <- nrow(data)			
 
 			p_value <- summary(trend)$coefficients[2,4]
 			rsq <- summary(trend)$r.squared
 			title <- paste0(unique(data$S), collapse="")
 			title <- unique(paste0(title, data$Sp))
 			title <- paste(title, trt, seeds, sep="-")
-			plot(data$mass, data[,seeds], xlab = "mass", ylab = "seeds total", ylim=range(data[,seeds]), col="darkblue", pch=21, bg="lightgrey")
+			plot(mass, seedcount, xlab = "mass", ylab = "seeds total", ylim=c(0,maxcount), xlim=c(0,maxmass),col="darkblue", pch=21, bg="lightgrey")
 			title(main=title, line=0.12, cex.main=1.19)
 			lines(x, y, col="darkgrey")
-			text(0,max(data[,seeds]) * .95, labels = paste("y =", round(m, digits = 2), "x +", round(b, digits = 2), "; p =", signif(p_value,3), "; \nR^2 =", signif(rsq,3), "; N=",N), adj = 0)
+			text(0,maxcount * .95, labels = paste("y =", round(m, digits = 2), "x +", round(b, digits = 2), "; p =", signif(p_value,3), "; \nR^2 =", signif(rsq,3), "; N=",N), adj = 0)
 	
 			seedstat <- c(m=m, b=b, p=p_value, R=rsq, N=N)
 			stats <- rbind(stats,seedstat)	
@@ -97,7 +110,7 @@ file_names <- file_names[-4]
 res <- as.list(file_names)
 names(res) <- file_names
 datList <- res
-pdf(fig101124)
+pdf(fig101524)
 par(mfrow=c(3,3), mar=c(1,1.5,1.5,0), oma=c(1,1,.5,.5), mgp=c(2,.25,0), tcl=-.2, xpd=F)
 for (f in file_names){
 	path <- paste0(data_location,f)
