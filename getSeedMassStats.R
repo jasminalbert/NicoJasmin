@@ -123,27 +123,10 @@ plotSeeds <- function(dat,stats, log=T){
 	}
 }
 
-predSeeds <- function(dat,stats,seeds="seedsTotal", trt="both", pred=T){
-	#fill in total seeds
-	#for rows that dont have it
-	noTs <- is.na(dat[,seeds])
-	if (pred){
-		check <- all(!is.na(dat$mass[noTs]))
-		if(!check){stop("missing mass values")}
-		stats <- c(m=stats[[trt]][seeds,"m"], b=stats[[trt]][seeds,"b"])
-		x <- dat$mass[noTs]
-		dat$seedsTotal[noTs] <- stats["m"]*x+stats["b"]
-	}
-	dat$est <- ifelse(noTs,1,0) 
-	dat$spb <- dat[,seeds]/dat$blooms #some NA blooms to check
-	dat$id <- apply(dat[,1:6],1,paste, collapse='')
-	return(dat)
-}
-
 #datList <- cleandat(path)
 #getStats(datList)
 #Lauren meeting 101524: log scale, same axis, use dif trt model 
-#one figure 
+#one figure, use seeds/bloom for model? 
 
 fig_loc <- "./figures/"
 fig101124 <- paste0(fig_loc,"fig101124.pdf")
@@ -187,19 +170,66 @@ str(datList)
 #combine open and closed
 datList <- datList[-which(names(datList)%in%c("WWCLAAMO","GLTCCLAAMO"))]
 datList <- lapply(datList, function(X){rbind(X$open, X$closed)})
+saveRDS(datList, "datList.RDS")
+
+
+
+predSeeds <- function(dat,stats,seeds="seedsTotal", trt="both", pred=T, log=T){
+	#fill in total seeds
+	#for rows that dont have it
+	#dat <- dat[,names(dat)%in%c("trt",seeds,"mass")]
+	noTs <- is.na(dat[,seeds])&dat$trt==trt
+	if (pred){
+		check <- all(!is.na(dat$mass[noTs]))
+		if(!check){stop("missing mass values")}
+		stats <- c(m=stats[[trt]][seeds,"m"], b=stats[[trt]][seeds,"b"])
+		x <- dat$mass[noTs]
+		y <- stats["m"]*x+stats["b"]
+		if(log==T){y <- exp(stats["m"]*log(x*10^5)+stats["b"])}
+		dat[,seeds][noTs]<-y
+	}
+	dat$est[noTs] <- 1 
+	#some NA blooms to check
+	#dat$id <- apply(dat[,1:6],1,paste, collapse='')
+	return(dat)
+}
+
 
 datListp <- datList
 spb <- datList
+bag <- unique(datList[[1]]$trt)
 for(sp in names(datList)){
 	p <- ifelse(sp=="WWCLAPUR",F,T)
-	datListp[[sp]] <- predSeeds(datList[[sp]], res[[sp]], pred=p)
-	spb[[sp]] <- reshape(datListp[[sp]][,c("id","trt","spb")], direction="wide", idvar="id", timevar="trt")
-	naVals <- apply(is.na(spb[[sp]][,2:3]),1,any)
-	spb[[sp]] <- spb[[sp]][!naVals,]
-	barplot(as.matrix(spb[[sp]][,2:3]))
+	seeds <- ifelse(sp=="WWCLAPUR","seedsTotal","seedsGood")
+	datListp[[sp]]$est <- NA
+	for (trt in bag){
+		datListp[[sp]] <- predSeeds(datListp[[sp]], res[[sp]], pred=p, seeds=seeds, trt=trt)
+	}
+	datListp[[sp]]$spb <- datListp[[sp]][,seeds]/datListp[[sp]]$blooms
+	datListp[[sp]]$id <- apply(datListp[[sp]][,1:6],1,paste,collapse='')
+	spb[[sp]] <- reshape(datListp[[sp]], direction="wide", idvar=c("S","St","M","genSpec","Sp","Fc","id"), timevar="trt", drop=c("blooms","seedsGood","seedsBad","seedsTotal","mass","est"))
+	#naVals <- apply(is.na(spb[[sp]][,2:3]),1,any)
+	#spb[[sp]] <- spb[[sp]][!naVals,]
+	boxplot(as.matrix(spb[[sp]][,8:9]), main=sp)
 }
+#reshape(datListp[[sp]][,c("id","trt","spb")], direction="wide", idvar="id", timevar="trt")
 
 #separate by mix type
+data <- rbind(datList$WWCLAPUR, datList$GLTCCLAPUR, datList$CLAAMO)
+bloomseeds <- rbind(spb$WWCLAPUR, spb$GLTCCLAPUR, spb$CLAAMO)
+bloomseeds$dif <- bloomseeds$spb.open-bloomseeds$spb.closed
+saveRDS(bloomseeds, "bloomseeds.RDS")
+
+boxplot(bloomseeds[bloomseeds$Sp=="CLAPUR",8:9], main="CLAPUR")
+clapurMixes <- unique(bloomseeds[bloomseeds$Sp=="CLAPUR",]$M)
+for (m in clapurMixes){
+	boxplot(bloomseeds[bloomseeds$Sp=="CLAPUR"&bloomseeds$M==m,8:9], main=paste0("CLAPUR",m))	
+}
+claamoMixes <- unique(bloomseeds[bloomseeds$Sp=="CLAAMO",]$M)
+for (m in claamoMixes){
+	boxplot(bloomseeds[bloomseeds$Sp=="CLAAMO"&bloomseeds$M==m,8:9], main=paste0("CLAAMO",m))	
+}
+
 
 
 
