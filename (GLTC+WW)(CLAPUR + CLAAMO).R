@@ -46,9 +46,16 @@ for (f in names(filenames)) {
   stats[f,"m"] <- m
   stats[f,"b"] <- b
   stats[f,"p_value"] <- p_val
-  stats[f,"R_sqaured"] <- rsq
+  stats[f,"R_squared"] <- rsq
+  
+  #constructing graph, need help on how to access individual graphs
+  
+  plot(Omass_Present$Omass, Omass_Present$OseedsTotal, xlab = "Open Mass", ylab = "Open Seeds Total", main ="Mass vs Seeds")
+  lines(x, y)
+  text(0,max(Omass_Present$OseedsTotal) * .95, labels = paste("y =", round(m, digits = 2), "x +", round(b, digits = 2), "; p =", p_val, "; \nR^2 =", rsq), adj = 0)
   
   
 }
 
 stats
+
