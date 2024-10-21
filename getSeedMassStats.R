@@ -1,4 +1,4 @@
-data_location <- "./data/"
+data_location <- "./data/seeds/"
 
 cleandat <- function(path){
 	dat <- read.csv(path, skip=1)
@@ -163,7 +163,8 @@ par(mfrow=c(2,3), mar=c(1.5,1.5,1.5,0), oma=c(1.5,1.5,.5,.5), mgp=c(2,.25,0), tc
 for (sp in c("CLAAMO","GLTCCLAPUR")){
 	plotSeeds(datList[[sp]],res[[sp]])
 }
-title(xlab="log(total seed mass * 10^5)",ylab="log(seed counts + 1)",outer=T,line=.4,cex.lab=1.3);dev.off()
+title(xlab="log(total seed mass * 10^5)",ylab="log(seed counts + 1)",outer=T,line=.4,cex.lab=1.3);
+dev.off()
 
 
 str(datList)
@@ -207,13 +208,13 @@ for(sp in names(datList)){
 	}
 	datListp[[sp]]$spb <- datListp[[sp]][,seeds]/datListp[[sp]]$blooms
 	datListp[[sp]]$id <- apply(datListp[[sp]][,1:6],1,paste,collapse='')
-	spb[[sp]] <- reshape(datListp[[sp]], direction="wide", idvar=c("S","St","M","genSpec","Sp","Fc","id"), timevar="trt", drop=c("blooms","seedsGood","seedsBad","seedsTotal","mass","est"))
+	spb[[sp]] <- reshape(datListp[[sp]], direction="wide", idvar=c("S","St","M","genSpec","Sp","Fc","id"), timevar="trt", drop=c("seedsGood","seedsBad","seedsTotal","mass","est"))
 	#naVals <- apply(is.na(spb[[sp]][,2:3]),1,any)
 	#spb[[sp]] <- spb[[sp]][!naVals,]
-	boxplot(as.matrix(spb[[sp]][,8:9]), main=sp)
+	boxplot(as.matrix(spb[[sp]][,c("spb.open","spb.closed")]), main=sp)
 }
 #reshape(datListp[[sp]][,c("id","trt","spb")], direction="wide", idvar="id", timevar="trt")
-
+#need to do somethign about WWCLAPUR using seeds good
 #separate by mix type
 data <- rbind(datList$WWCLAPUR, datList$GLTCCLAPUR, datList$CLAAMO)
 bloomseeds <- rbind(spb$WWCLAPUR, spb$GLTCCLAPUR, spb$CLAAMO)
