@@ -6,8 +6,9 @@ str(data)
 names(data)[names(data)%in%c("spb.open","spb.closed")]<- c("open","closed")
 data[data$M==0,]$genSpec <- "SS"
 data <- data[-which(data$Sp=="CLAAMO" & data$M==6),]
-
 data$S <- factor(data$S)
+saveRDS(data, "bloomseeds2.RDS")
+
 idvar <-c("S","St","Sp","Fc")
 tblue <- rgb(0,0,0.5,0.5);tgreen <- rgb(0,0.5,0,0.5)
 tcols <- c(tblue,tgreen)#data.frame(tcols[data$S],data$S)
