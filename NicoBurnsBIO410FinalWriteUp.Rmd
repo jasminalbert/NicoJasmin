@@ -1,0 +1,554 @@
+---
+title: "BIO410FinalWriteUp"
+author: "Nico Burns"
+date: "2024-12-10"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Welcome to my final project write up for BIO 410, data science for ecological conservation. I will be using data from my research project: "Flowering Plant Fitness in Response to Neighboring Competition for Pollination", conducted with the Hallett lab at the University of Oregon. 
+
+#Let's load our Libraries
+
+```{r load-libraries, echo=FALSE, results="hide", message=FALSE, warning=FALSE}
+library(dplyr)
+library(terra) 
+library(ggplot2)
+library(RColorBrewer)
+library(sf)
+library(tigris)
+library(broom)
+library(raster)
+```
+
+#Introduction
+
+  As the frequency of ecological disturbances steadily increases throughout the 21st century, calls for restoration efforts for these disturbed areas, and measures to protect these areas, have risen in concurrence (McKenzie, D.). Pollination is an integral part of flowering plant fitness in these ecosystems, but with pollinator populations declining (Rhodes CJ), efforts to restore not only pollinator populations but pollinator habitats, AKA flowering plant communities, are imperative as well. However, restoration efforts of plants and pollinators are often disjointed (Menz, Myles H.M. et al.), as techniques for plant restoration and pollination restoration differ respectively. For this project specifically, I will be looking at how the species richness and density of a plant's competitive neighborhood affects fitness/restoration outcomes of flowering plants. Although plants do produce seeds in the absence of pollination, it is impossible to deny that the presence of pollination almost always results in an increase of seeds produced. The difference between the mass of the "pollination present" seeds and the "pollination absent" seeds of my plant individuals are what I call the Pollination Boost Metric, or PBM (elaboration of this in methods). Previous research indicates that the richness and density of a given plants neighborhood does have an effect on individual fitness markers such as biomass/growth rate (Silander, J.A., Pacala, S.W.). However, it is unknown whether competitive neighborhood richness and density have an impact on the seed production boost that pollination provides, leading to these analyses. 
+  
+Research Questions:
+
+• How does neighborhood density affect the seed output
+boost that arises from pollination?
+- I hypothesize that an increase in a plants neighborhood density will result in a smaller magnitude of the seed output boost that arises from pollination.
+
+• How does neighborhood richness affect the seed
+output boost that arises from pollination?
+- I hypothesize that an increase in a plants neighborhood richness will also result in a smaller magnitude of the seed output boost that arises from pollination.
+
+
+#Methods:
+
+
+ For my overarching project on flowering plant fitness, I use a total of 8 focal species. However for this project, I will be narrowing my focus and using 3 plant species: 
+1: Madia Gracilis (MADGRA), a somewhat large pollinator specialist, with yellow blooms.
+2: Clarkia Pupurea (CLAPUR), a medium sized pollinator generalist, with purple blooms.
+3: Clarkia Amoena (CLAAMO), a medium sized pollinator generalist, with pink blooms.
+
+Personal Research Data: My research experiment takes place in Leaburg Oregon, in the vicinity of where the Holiday Farm Fire took place in 2020. For each unique research plot, all which are in log burn piles (a post fire/disturbance environment), each plot has 5-6 total plant mixes, each with a different variety of plant species. In each plant mix, we pick 4 different plant species to seed, where each unique plant species has 8-12 focal individuals chosen, at random. For each focal individual, we pick a certain number of blooms (at least 1) to be the "open" treatment, where pollination is allowed, and a certain number of blooms to be the "closed" treatment. The closed treatments exhibit pollinator exclusion by preventing pollinators from interacting with the flowers via a clear mesh bag, so sunlight and moisture can enter but nothing else. The open blooms are left as is. The phenology/relative age of these open and closed blooms must be as similar as possible, so that we can establish the closed seeds as a baseline seed production, where the open seeds are seed production in the presence of pollination. We then subsequently weigh the mass of the open seeds, and the closed seeds in grams. We then divide that number by the number of respective open or closed blooms, for an average seed mass metric per bloom. The difference between these 2 averages (open seed mass - closed seed mass), is the Pollination Boost Metric.
+
+Census Data: On a separate data sheet, we then census the competitive neighborhood, a 10cm^2 radius, of each focal individual per species. For large individuals, such as most MADGRA focal individuals, we use a 20cm^2 neighborhood. The species present in that neighborhood (richness), and the frequencies of those species (density), are recorded. This and my seed mass data must be cleaned and tidied, and then joined together in one of many ways. I opt to create new columns in my seed mass data frames, rather than join the census and seed mass data together.
+
+Fire Data: I have a raster file of the fire severity and extent of the Holiday Farm Fire that I use to set the background for where my research plot locations are.
+
+Research Plot Location Data: I have coordinate/vector data for all of my research plot sites in the Holiday Farm Fire Vicinity.
+
+#Setting the Stage
+
+``` {r}
+#note - instead of utilizing the function "set working directory" or setwd(), I decided to hard code my file paths as it was more understandable to me as I was working on the project. Make sure to double check your file paths are correct if replicating.
+
+#grabbing raster file
+
+holidayfire_raster <- rast("~/Documents/BIO410stuff/BIO410FinalProj/data/soil-burn-severity/2020_holidayfarm_sbs/HolidayFarm_SBS_final.tif")
+holiday_df <- as.data.frame(holidayfire_raster, xy = TRUE)
+names(holiday_df)[3] <- "Fire Severity"
+holiday_df$`Fire Severity` <- as.character(holiday_df$`Fire Severity`)
+holidaycrs <- st_crs(holidayfire_raster)    #we will need to use this as our coordinate reference system
+
+#lets grab a basic map of Oregon 
+
+OR <- counties(state = "OR", class = "sf")
+OR_map <- st_transform(OR, crs(holidayfire_raster))
+
+#grabbing vector data!
+
+stand_locs <- st_read("~/Documents/BIO410Stuff/BIO410FinalProj/data/GLTCstands/GLTCstands.shp")
+#changing CRS
+stand_locs <- st_transform(stand_locs, crs = holidaycrs)
+
+#Let us set the stage, and plot where our data/stands are located
+
+#background map of Oregon with Holiday Farm Fire
+ggplot() +
+  geom_sf(data = OR_map, color = "black") +
+  geom_raster(data = holiday_df, aes(x = x, y = y, fill = `Fire Severity`)) +
+    scale_fill_brewer(palette = "Spectral", direction=-1) +
+  theme_minimal()
+
+#map of Holiday Farm Fire with plot locations
+ggplot() +
+  geom_raster(data = holiday_df, aes(x = x, y = y, fill = `Fire Severity`)) +
+  scale_fill_brewer(palette = "Spectral", direction=-1) +
+  ggtitle("GLTC Stand Locations at the Holiday Farm Fire") +  # Add a title
+  xlab("Longitude") +  # Label for X axis
+  ylab("Latitude") +
+  theme_minimal()+
+  geom_sf(data = stand_locs, color = "black", size = 2, fill = NA)
+```
+  
+#Reading in Data and initial data tidying/cleaning
+
+``` {r}
+#grabbing seed data frames, each data frame is named after the species it pertains to
+
+Clapur <- read.csv("~/Documents/BIO410stuff/BIO410FinalProj/data/SeedsData - GLTCCLAPUR.csv", skip = 1)
+
+Clapur <- Clapur[Clapur$M!=0,]
+#the "$M" column is the column that represents the plant mix. We drop all data from mixes zero because they are single species plots and will not have neighbors of different species. 
+Claamo <- read.csv("~/Documents/BIO410stuff/BIO410FinalProj/data/SeedsData - GLTCCLAAMO.csv", skip = 1)
+
+Claamo <- Claamo[Claamo$M!=0,]
+
+Madgra <- read.csv("~/Documents/BIO410stuff/BIO410FinalProj/data/SeedsData - GLTCMADGRA.csv", skip = 1)
+
+Madgra <- Madgra[Madgra$M!=0,]
+
+#for each seed mass/species data frame, there are about 18 columns in total. However we only care about the first 5 or so columns for identification: $S (site), $St (stand), $M (mix), $Sp (species) and $Fc (focal). We will use these columns to identify what species/ID number our focal is, and where it is. 
+#we also care about 4 more columns for our actual seed mass data: $Oblooms (# open blooms), $Omass (open seed mass), $Cblooms (# closed blooms) and $Cmass (closed seed mass).
+
+#grabbing census data
+cdata <- read.csv("~/Documents/BIO410stuff/BIO410FinalProj/data/bigData_workingCopy - CCDATA.csv")
+
+#here we are going to first grab only data from our species, and data from our mixes of choice (all but 0). We then select all relevant columns (drop all columns before "CLAAMO" and columns after "ERUIAN", that's where census data exists). We then create 2 new columns, richness or rich (num unique species), and density or dens (num of total neighbors). Lastly, we create a new data frame, one with only the species and focal identification columns, and density and richness coumns. 
+specs <- c("CLAAMO","CLAPUR", "MADGRA")
+
+cdata <- cdata[cdata$Sp%in%specs & cdata$M!=0 & cdata$S=="GLTC",]
+
+#our census data has the same 5 identification columns that our seed mass data has, we will make sure these match with our seed mass data frame iterations when parsing census data and matching it to our seed mass data.
+#"cdata" or the census data then has columns for every species noted in the area, with a count for how many individuals in that species were present in its competitive neighborhood.
+
+idend <- which(names(cdata)=="Fc")
+realstart <- which(names(cdata) == "S")
+censtart <- which(names(cdata)=="CLAAMO")
+cenend <- which(names(cdata)=="ERILAN")
+cenmat <- cdata[,censtart:cenend]
+
+cdata_no_bs <- cdata[,realstart:cenend]
+
+select <- c(1:idend,censtart:cenend)
+cdata <- cdata[,select]
+iddat <- cdata[,1:idend]
+
+cenmat <- apply(cenmat,2, as.numeric)
+dens <- rowSums(cenmat, na.rm=T)
+rich <- rowSums(cenmat>0, na.rm=T)
+
+cendat <- cbind(iddat,cenmat,dens,rich)   #new data frame that we will use
+
+#this new data frame keeps all of our identification columns as listed earlier, adds a density and richness column, and drops all the original census data columns for simplicity. We will use this to add census data for richness and density to our seed mass data frames.
+
+#lets add a density and richness column for each of our species dataframes.  
+Madgra$dens <- NA
+Madgra$rich <- NA
+Claamo$dens <- NA
+Claamo$rich <- NA
+Clapur$dens <- NA
+Clapur$rich <- NA
+
+#now lets do some logic and match census data to the individuals in the species dataframes.
+#this function takes 2 data frames as inputs, the first a species mass dataframe, and the next a census dataframe, and assumes they have the same identification columns.
+Match <- function(spec, censusdat) {
+  # Iterate over rows of species and censusdata
+  for (i in 1:nrow(spec)) {
+    for (j in 1:nrow(cendat)) {
+      # Check if all conditions match
+      if (spec$St[i] == censusdat$St[j] & spec$M[i] == censusdat$M[j] & 
+          spec$Sp[i] == censusdat$Sp[j] & spec$Fc[i] == censusdat$Fc[j]) {
+        # Update spec's density and richness values
+        spec$dens[i] <- censusdat$dens[j]
+        spec$rich[i] <- censusdat$rich[j]
+      }
+    }
+  }
+  return(spec)
+}
+
+#applying function
+
+Madgra <- Match(Madgra, cendat)
+Clapur <- Match(Clapur, cendat)
+Claamo <- Match(Claamo, cendat)
+
+#now lets clean the species data frames, and create the data column we are going to analyze, PBoost!
+#this function takes a dataframe as an input and cleans it of NA's, and makes sure every column has a numeric value. Lastly, we create the PBoost column.
+Cleandata <- function(spec) {
+  # Ensure Open mass and Closed mass columns are numeric
+  spec$Omass <- as.numeric(spec$Omass)
+  spec$Cmass <- as.numeric(spec$Cmass)
+  
+  # Remove rows with NA values in Omass or Cmass
+  spec <- spec[!is.na(spec$Omass) & !is.na(spec$Cmass), ]
+  
+  # Calculate PBoost
+  spec$PBoost <- ((spec$Omass / spec$Oblooms) - (spec$Cmass / spec$Cblooms))
+  
+  return(spec)
+}
+
+#applying
+
+Madgra <- Cleandata(Madgra)
+Clapur <- Cleandata(Clapur)
+Claamo <- Cleandata(Claamo)
+
+```
+  
+#Visualization of Data
+
+```{r}
+#instead of creating a function for creating graphs, I will create individual graphs (a frequency histogram and scatter plot) for density and richness for each of my species data frames to better customize individual graph elements.
+#I will also use a linear regression function to test for statistical significance of the relationship between density/richness and the Pollinator Boost Metric
+#for each species, i will create a histogram and scatter plot for density, then a histogram and scatter plot for richness. 
+
+#this is a lot of code, but it's repetitive. Repeats after every 4 graph creations for a total of 3 times.
+
+#Madgra First!
+
+lm_density <- lm(PBoost ~ dens, data = Madgra)
+  lm_summary_density <- broom::tidy(lm_density)
+  r_squared_density <- summary(lm_density)$r.squared
+  slope_density <- lm_summary_density$estimate[2]
+  p_value_density <- lm_summary_density$p.value[2]
+  
+#density
+  
+MSD <- ggplot(Madgra, aes(x = dens, y = PBoost)) +
+  geom_point(color = "orange", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "hotpink", linetype = "dashed") +
+  labs(
+    title = "MADGRA Pollination Boost by Density",
+    x = "Neighborhood Density",
+    y = "Pollination Boost by Seed Mass(g)"
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = paste0(
+      "slope = ", round(slope_density, 4), "\n",
+      "R² = ", round(r_squared_density, 3), "\n",
+      "p-value = ", signif(p_value_density, 3)
+    ), hjust = 1.1, vjust = -0.5, size = 4, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+#richness
+
+lm_richness <- lm(PBoost ~ rich, data = Madgra)
+  lm_summary_richness <- broom::tidy(lm_richness)
+  r_squared_richness <- summary(lm_richness)$r.squared
+  slope_richness <- lm_summary_richness$estimate[2]
+  p_value_richness <- lm_summary_richness$p.value[2]
+  
+  MSR <- ggplot(Madgra, aes(x = rich, y = PBoost)) +
+  geom_point(color = "orange", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "limegreen", linetype = "dashed") +
+  labs(
+    title = "MADGRA Pollination Boost by Richness",
+    x = "Neighborhood Richness",
+    y = "Pollination Boost by Seed Mass(g)"
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = paste0(
+      "slope = ", round(slope_richness, 4), "\n",
+      "R² = ", round(r_squared_richness, 3), "\n",
+      "p-value = ", signif(p_value_richness, 3)
+    ), hjust = 1.1, vjust = -0.5, size = 4, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+  
+  #histogram dens
+  
+  MHD <- ggplot(Madgra, aes(x = dens)) +
+    geom_histogram(binwidth = 1, fill = "orange", color = "hotpink", alpha = 0.7) +
+    labs(
+      title = "MADGRA Neighborhood Density",
+      x = "Density",
+      y = "Frequency"
+    ) +
+    scale_x_continuous(
+    breaks = seq(floor(min(Madgra$dens)), ceiling(max(Madgra$dens)), by = 1),
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 12)
+    )
+  
+  # Histogram for Richness
+  
+  MHR <- ggplot(Madgra, aes(x = rich)) +
+    geom_histogram(binwidth = 1, fill = "orange", color = "limegreen", alpha = 0.7) +
+    labs(
+      title = "MADGRA Neighborhood Richness",
+      x = "Richness",
+      y = "Frequency"
+    ) +
+    scale_x_continuous(
+    breaks = seq(floor(min(Madgra$rich)), ceiling(max(Madgra$rich)), by = 1),
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 12)
+    )
+  
+#Claamo next
+  
+lm_density_1 <- lm(PBoost ~ dens, data = Claamo)
+  lm_summary_density_1 <- broom::tidy(lm_density_1)
+  r_squared_density_1 <- summary(lm_density_1)$r.squared
+  slope_density_1 <- lm_summary_density_1$estimate[2]
+  p_value_density_1 <- lm_summary_density_1$p.value[2]
+  
+#density
+  
+CASD <- ggplot(Claamo, aes(x = dens, y = PBoost)) +
+  geom_point(color = "pink", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "hotpink", linetype = "dashed") +
+  labs(
+    title = "CLAAMO Pollination Boost by Density",
+    x = "Neighborhood Density",
+    y = "Pollination Boost by Seed Mass(g)"
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = paste0(
+      "slope = ", round(slope_density_1, 4), "\n",
+      "R² = ", round(r_squared_density_1, 3), "\n",
+      "p-value = ", signif(p_value_density_1, 3)
+    ), hjust = 1.1, vjust = -0.5, size = 4, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+#richness
+
+lm_richness_1 <- lm(PBoost ~ rich, data = Claamo)
+  lm_summary_richness_1 <- broom::tidy(lm_richness_1)
+  r_squared_richness_1 <- summary(lm_richness_1)$r.squared
+  slope_richness_1 <- lm_summary_richness_1$estimate[2]
+  p_value_richness_1 <- lm_summary_richness_1$p.value[2]
+  
+  CASR <- ggplot(Claamo, aes(x = rich, y = PBoost)) +
+  geom_point(color = "pink", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "limegreen", linetype = "dashed") +
+  labs(
+    title = "CLAAMO Pollination Boost by Richness",
+    x = "Neighborhood Richness",
+    y = "Pollination Boost by Seed Mass(g)"
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = paste0(
+      "slope = ", round(slope_richness_1, 4), "\n",
+      "R² = ", round(r_squared_richness_1, 3), "\n",
+      "p-value = ", signif(p_value_richness_1, 3)
+    ), hjust = 1.1, vjust = -0.5, size = 4, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+  
+  #histogram dens
+  
+  CAHD <- ggplot(Claamo, aes(x = dens)) +
+    geom_histogram(binwidth = 1, fill = "pink", color = "hotpink", alpha = 0.7) +
+    labs(
+      title = "CLAAMO Neighborhood Density",
+      x = "Density",
+      y = "Frequency"
+    ) +
+    scale_x_continuous(
+    breaks = seq(floor(min(Claamo$dens)), ceiling(max(Claamo$dens)), by = 1),
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 12)
+    )
+  
+  # Histogram for Richness
+  
+  CAHR <- ggplot(Claamo, aes(x = rich)) +
+    geom_histogram(binwidth = 1, fill = "pink", color = "limegreen", alpha = 0.7) +
+    labs(
+      title = "CLAAMO Neighborhood Richness",
+      x = "Richness",
+      y = "Frequency"
+    ) +
+    scale_x_continuous(
+    breaks = seq(floor(min(Claamo$rich)), ceiling(max(Claamo$rich)), by = 1),
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 12)
+    )
+  
+  
+#Finally Clapur
+  
+lm_density_2 <- lm(PBoost ~ dens, data = Clapur)
+  lm_summary_density_2 <- broom::tidy(lm_density_2)
+  r_squared_density_2 <- summary(lm_density_2)$r.squared
+  slope_density_2 <- lm_summary_density_2$estimate[2]
+  p_value_density_2 <- lm_summary_density_2$p.value[2]
+  
+#density
+  
+CPSD <- ggplot(Clapur, aes(x = dens, y = PBoost)) +
+  geom_point(color = "purple", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "hotpink", linetype = "dashed") +
+  labs(
+    title = "CLAPUR Pollination Boost by Density",
+    x = "Neighborhood Density",
+    y = "Pollination Boost by Seed Mass(g)"
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = paste0(
+      "slope = ", round(slope_density_2, 4), "\n",
+      "R² = ", round(r_squared_density_2, 3), "\n",
+      "p-value = ", signif(p_value_density_2, 3)
+    ), hjust = 1.1, vjust = -0.5, size = 4, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+#richness
+
+lm_richness_2 <- lm(PBoost ~ rich, data = Clapur)
+  lm_summary_richness_2 <- broom::tidy(lm_richness_2)
+  r_squared_richness_2 <- summary(lm_richness_2)$r.squared
+  slope_richness_2 <- lm_summary_richness_2$estimate[2]
+  p_value_richness_2 <- lm_summary_richness_2$p.value[2]
+  
+  CPSR <- ggplot(Clapur, aes(x = rich, y = PBoost)) +
+  geom_point(color = "purple", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "limegreen", linetype = "dashed") +
+  labs(
+    title = "CLAPUR Pollinator Boost by Richness",
+    x = "Neighborhood Richness",
+    y = "Pollination Boost by Seed Mass(g)"
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = paste0(
+      "slope = ", round(slope_richness_2, 4), "\n",
+      "R² = ", round(r_squared_richness_2, 3), "\n",
+      "p-value = ", signif(p_value_richness_2, 3)
+    ), hjust = 1.1, vjust = -0.5, size = 4, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+  #histogram dens
+  
+  CPHD <- ggplot(Clapur, aes(x = dens)) +
+    geom_histogram(binwidth = 1, fill = "purple", color = "hotpink", alpha = 0.7) +
+    labs(
+      title = "CLAPUR Neighborhood Density",
+      x = "Density",
+      y = "Frequency"
+    ) +
+    scale_x_continuous(
+    breaks = seq(floor(min(Clapur$dens)), ceiling(max(Clapur$dens)), by = 1),
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 12)
+    )
+  
+  # Histogram for Richness
+  
+  CPHR <- ggplot(Clapur, aes(x = rich)) +
+    geom_histogram(binwidth = 1, fill = "purple", color = "limegreen", alpha = 0.7) +
+    labs(
+      title = "CLAPUR Neighborhood Richness",
+      x = "Richness",
+      y = "Frequency"
+    ) +
+    scale_x_continuous(
+    breaks = seq(floor(min(Clapur$rich)), ceiling(max(Clapur$rich)), by = 1),
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 12)
+    )
+  
+#here are all the graphs in one place, so they are easy to access.
+  
+#Madgra graphs
+print(MSD)      #madgra scatter density
+print(MSR)      #madgra scatter richness
+print(MHD)      #madgra hist density
+print(MHR)      #madgra hist richness
+#Claamo graphs
+print(CASD)     #claamo scatter density
+print(CASR)     #claamo scatter richness
+print(CAHD)     #claamo hist density
+print(CAHR)     #claamo hist richness
+#Clapur graphs
+print(CPSD)     #clapur scatter density
+print(CPSR)     #clapur scatter richness
+print(CPHD)     #clapur hist density
+print(CPHR)     #clapur hist richness
+
+```
+  
+  
+#Conclusion
+
+Effects of Neighborhood Density: In analyzing the data and creating these graphs, it is clear that Neighborhood density is not a significant factor on the magnitude of the Pollination Boost Metric. Although there is a slight positive relationship, as for all 3 species the Pollination Boost in seed mass does increase as neighborhood density increases. Average slope is about .0004. However the significance or P-values for these linear regressions are well below the significance cutoff of 0.05, at values of .69 for Madgra, .68 for Claamo and .62 for Clapur, respectively. This means my hypothesis is not supported, and we cannot reject the Null hypothesis. The data does not support my original hypothesis of neighborhood density having a significant negative effect on the Pollination Boost Metric.
+
+Effects of Neighborhood Richness: Similarly to Neighborhood density, it is again clear that Neighborhood richness is not a significant factor on the magnitude of the Pollination Boost Metric. There is a slight negative relationship however, where an increase in neighborhood richness does equate to a slight decrease in the Pollination Boost Metric. This is true for all species but Madgra, which strangely presents a slight, insignificant positive relationship instead. (This could possibly be explained by the fact that Madgra can avidly self pollinate, and loose seeds in Madgra seed pods causing an error in data collection.) Although there are slight relationships between richness and a species Pollination Boost Metric, none of these relationships come close to significance, with p-values of .52 for Madgra, .78 for Claamo and .26 for Clapur, respectively. Since the significance values of these regressions are nowhere near the significant cutoff, we cannot reject the Null hypothesis, as the data does not support my original hypothesis of neighborhood richness having a significant negative effect on the Pollination Boost Metric.
+
+Takeaways: Although my data and visualizations do indeed support these conclusions, my data is still preliminary as data collection is ongoing, and these results may be subject to drastic changes once all data is collected. Human error also cannot be ignored as bloom collection, censusing and seed weighing were all done by hand and often times by me, resulting in possible mistakes and miscalculations along the way. That being said, these analyses indicate that the competitive neighborhood density and richness of a plant is not a significant factor on the positive effects of pollination in a post fire, restorative setting. This means that when measuring the effect that pollination has during flowering plant restoration, other factors should be taken into account when attempting to maximize the pollination benefit, before looking at a plants neighborhood density and richness. However, even though these relationships are not significant, they still may be present and we cannot act like they do not exist. More thorough data collection and analyses are needed in order to truly answer this question, but hopefully these preliminary results, and future results, can help us create more effective and meaningful flowering plant restoration efforts.
+  
+  
+  
+  
+#References
+Menz, Myles H.M. et al. Trends in Plant Science, Volume 16, Issue 1, 4 - 12
+
+Rhodes CJ. Pollinator Decline – An Ecological Calamity in the Making? Science Progress. 2018;101(2):121-160. doi:10.3184/003685018X15202512854527 
+
+Johnson, C.A., Dutt, P. & Levine, J.M. Competition for pollinators destabilizes plant coexistence. Nature 607, 721–725 (2022). https://doi.org/10.1038/s41586-022-04973-x
+
+Silander, J.A., Pacala, S.W. Neighborhood predictors of plant performance. Oecologia 66, 256–263 (1985). https://doi.org/10.1007/BF00379863
+
+McKenzie, D. (2020). Ecological Disturbance. In: Mountains in the Greenhouse. Springer, Cham. https://doi.org/10.1007/978-3-030-42432-9_6 
+
+#Acknowledgements
+
+A huge thank you to the Hallett Lab and my mentors Jasmin Albert and Lauren Hallett.
+
+Another special thank you to Lauren Ponisio, Rose McDonald, Nicole Llaurador and other members of the Ponisio lab for designing this project, and other supplemental assistance. 
