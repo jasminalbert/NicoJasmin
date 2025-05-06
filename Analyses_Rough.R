@@ -5,6 +5,7 @@ library(lme4)
 #install.packages("lme4")
 install.packages("lmerTest")
 library(lmerTest)
+library(performance)
 
 #READ: All this stuff is just setting up data frames, can ignore unless one desires to see how i am cleaning & joining data
 
@@ -84,14 +85,31 @@ for (i in 1:nrow(WW_Colligra)) {
 }
 
 #TODO: do empty inflorescence to seeds conversion for the open samples of WW & GLTC Colligra here
+Colligra <- rbind(GLTC_Colligra, WW_Colligra)
 
+Colligra$CseedsTotal <- Colligra$CseedsGood + Colligra$CseedsBad
+Colligra_complete <- Colligra[Colligra$Ocomplete. == 1,]
 
+Colligra_complete
 
+Colligra_complete$OseedsTotal <- Colligra_complete$OseedsGood + Colligra_complete$OseedsBad
 
-GLTC_Colligra$CseedsTotal <- (GLTC_Colligra$CseedsGood + GLTC_Colligra$CseedsBad)
-WW_Colligra$CseedsTotal <- (WW_Colligra$CseedsGood + WW_Colligra$CseedsBad)
-GLTC_Colligra$OseedsTotal <- (GLTC_Colligra$OseedsGood + GLTC_Colligra$OseedsBad)
-WW_Colligra$OseedsTotal <- (WW_Colligra$OseedsGood + WW_Colligra$OseedsBad)
+#open mass -> seed conversion
+trend_1 = lm(Colligra_complete$OseedsTotal ~ Colligra_complete$OemptyInflorMass)
+summary(trend_1)
+str(trend_1)
+trend_1$coefficients
+class(trend_1$coefficients)
+names(trend_1$coefficients)
+m_1 <- trend_1$coefficients["Colligra_complete$OemptyInflorMass"]
+b_1 <- trend_1$coefficients["(Intercept)"]
+RangeOmass_1 <- range(Colligra_complete$OemptyInflorMass)
+#y <- (m * x) + b
+
+for (i in 1:nrow(Colligra)) {
+  Colligra$OseedsTotal[i] <- (m_1 * (Colligra$OemptyInflorMass[i])) + b_1
+}
+
 
 Cleandata <- function(spec) {
   # Remove rows with NA values in Oseeds or Cseeds
@@ -104,8 +122,7 @@ Cleandata <- function(spec) {
 
 GLTC_Clapur <- Cleandata(GLTC_Clapur)
 WW_Clapur <- Cleandata(WW_Clapur)
-GLTC_Colligra <- Cleandata(GLTC_Colligra)
-WW_Colligra <- Cleandata(WW_Colligra)
+Colligra <- Cleandata(Colligra)
 
 #dropping a column for WW clapur so i can join df's
 WW_Clapur <- subset(WW_Clapur, select = -notesClosed)
@@ -117,7 +134,6 @@ GLTC_Clapur
 
 ####
 Clapur <- rbind(GLTC_Clapur, WW_Clapur)
-Colligra <- rbind(GLTC_Colligra, WW_Colligra)
 ####
 
 cdata <- read.csv("~/Documents/LabThings/NicoJasmin/Data/bigData_workingCopy - CCDATA.csv")
@@ -223,9 +239,8 @@ anova(model_rough0_clapur, model_rough_clapur)
 
 Clapur$St <- as.character(Clapur$St)
 
-model_mixed_rough_clapur <- lmer(polldiff ~ strat + CLAAMO + CLAPUR + COLLIGRA + COLLOGRA +
-                           GILCAP + MADGRA + MICGRA + EPIBRA + PHAHET  
-                         + (1 | St) + (1 | Fc), data = Clapur)
+model_mixed_rough_clapur <- lmer(polldiff ~ strat +  
+                         + (1 | St / M),  data = Clapur)
 
 isSingular(model_mixed_rough_clapur, tol = 1e-4)
 
@@ -236,5 +251,11 @@ colSums(Clapur[which(names(Clapur)=="CLAAMO"):which(names(Clapur)=="EPIANG")])
 
 var(Clapur$St)
 class(Clapur$S)
+ 
+check_model(model_mixed_rough_clapur)
+
+#TODO: change stand numbers to be (1,2,3,4) instead of (700, 702, 704 etc.)?
+#gonna try and use mix ($m) as a nested random effect first...
+
 
 
