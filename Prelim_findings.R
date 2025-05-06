@@ -69,15 +69,36 @@ for (i in 1:nrow(WW_Colligra)) {
   }
 }
 
-GLTC_Colligra$CseedsTotal <- (GLTC_Colligra$CseedsGood + GLTC_Colligra$CseedsBad)
-#instead of backtracking seed loss using inflorescence, just assume every open bloom is perfect (has 4 seeds)
-GLTC_Colligra$OseedsTotal <- (GLTC_Colligra$Oblooms * 4)
+for (i in 1:nrow(WW_Colligra)) {
+  if (!is.na(WW_Colligra$OseedsGood[i]) & is.na(WW_Colligra$OseedsBad[i])) {
+    WW_Colligra$OseedsBad[i] <- 0
+  }
+}
 
-WW_Colligra$CseedsTotal <- (WW_Colligra$CseedsGood + WW_Colligra$CseedsBad)
-WW_Colligra$OseedsTotal <- (WW_Colligra$Oblooms * 4)
+Colligra <- rbind(GLTC_Colligra, WW_Colligra)
+#seed conversion from mass (open samples)
+Colligra$CseedsTotal <- Colligra$CseedsGood + Colligra$CseedsBad
+Colligra_complete <- Colligra[Colligra$Ocomplete. == 1,]
 
-GLTC_Colligra
-WW_Colligra
+Colligra_complete
+
+Colligra_complete$OseedsTotal <- Colligra_complete$OseedsGood + Colligra_complete$OseedsBad
+
+#open mass -> seed conversion
+trend_1 = lm(Colligra_complete$OseedsTotal ~ Colligra_complete$OemptyInflorMass)
+summary(trend_1)
+str(trend_1)
+trend_1$coefficients
+class(trend_1$coefficients)
+names(trend_1$coefficients)
+m_1 <- trend_1$coefficients["Colligra_complete$OemptyInflorMass"]
+b_1 <- trend_1$coefficients["(Intercept)"]
+RangeOmass_1 <- range(Colligra_complete$OemptyInflorMass)
+#y <- (m * x) + b
+
+for (i in 1:nrow(Colligra)) {
+  Colligra$OseedsTotal[i] <- (m_1 * (Colligra$OemptyInflorMass[i])) + b_1
+}
 
 Cleandata <- function(spec) {
   # Remove rows with NA values in Oseeds or Cseeds
@@ -90,8 +111,9 @@ Cleandata <- function(spec) {
 
 GLTC_Clapur <- Cleandata(GLTC_Clapur)
 WW_Clapur <- Cleandata(WW_Clapur)
-GLTC_Colligra <- Cleandata(GLTC_Colligra)
-WW_Colligra <- Cleandata(WW_Colligra)
+Colligra <- Cleandata(Colligra)
+
+Colligra
 
 #dropping a column for WW clapur so i can join df's
 WW_Clapur <- subset(WW_Clapur, select = -notesClosed)
@@ -102,7 +124,6 @@ WW_Clapur
 GLTC_Clapur
 
 Clapur <- rbind(GLTC_Clapur, WW_Clapur)
-Colligra <- rbind(GLTC_Colligra, WW_Colligra)
 
 Clapur$PollinationStrat <- NA
 for (i in 1:nrow(Clapur)) {
@@ -126,7 +147,8 @@ for (i in 1:nrow(Colligra)) {
 #graphs
 
 Clapur_graph <- ggplot(Clapur, aes(x = PollinationStrat, y = polldiff )) +
-  geom_jitter(width = 0.2, height = 0, color = "purple", size = 2) +
+  geom_boxplot(fill="purple", alpha=0.2) +
+  geom_jitter(width = 0.2, height = 0, color = "black", size = 1) +
   ggtitle("Clapur Seed Difference (Open-Closed)") +
   xlab("PollinationStrategy") +
   ylab("Seed Difference (OseedsTotal - CseedsTotal")
@@ -134,11 +156,13 @@ Clapur_graph <- ggplot(Clapur, aes(x = PollinationStrat, y = polldiff )) +
 Clapur_graph
 
 Colligra_graph <- ggplot(Colligra, aes(x = PollinationStrat, y = polldiff )) +
-  geom_jitter(width = 0.2, height = 0, color = "skyblue", size = 2) +
-  ggtitle("Clapur Seed Difference (Open-Closed)") +
+  geom_boxplot(fill="skyblue", alpha=0.2) +
+  geom_jitter(width = 0.2, height = 0, color = "black", size = 1) +
+  ggtitle("Colligra Seed Difference (Open-Closed)") +
   xlab("PollinationStrategy") +
   ylab("Seed Difference (OseedsTotal - CseedsTotal")
 
 Colligra_graph
 
+t.test(Colligra$polldiff[Colligra$PollinationStrat == "Heterogeneous"], Colligra$polldiff[Colligra$PollinationStrat == "Homogeneous"])
 
