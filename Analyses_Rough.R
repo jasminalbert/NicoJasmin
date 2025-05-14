@@ -3,11 +3,9 @@ library(ggplot2)
 library(dplyr)
 library(lme4)
 #install.packages("lme4")
-#install.packages("lmerTest")
+install.packages("lmerTest")
 library(lmerTest)
 library(performance)
-library(tidyverse)
-library(modelr)
 
 #READ: All this stuff is just setting up data frames, can ignore unless one desires to see how i am cleaning & joining data
 
@@ -219,163 +217,45 @@ Clapur
 Clapur$strat <- "het"
 Clapur$strat[Clapur$genSpec=="genOnly"] <- "homo"
 
-Colligra$strat <- NA
-for (i in 1:nrow(Colligra)) {
-  if (Colligra$genSpec[i] == "specOnly" | Colligra$genSpec[i] == "ss") {
-    Colligra$strat[i] <- "homo"
-  }
-  else {
-    Colligra$strat[i] <- "het"
-  }
-}
-####################################
-#Analysis starts here more or less
-####################################
-#model_rough_clapur <- lm(polldiff ~ strat + CLAAMO + CLAPUR + COLLIGRA + COLLOGRA +
-                              # GILCAP + MADGRA + MICGRA + EPIBRA + COLHET + PHAHET + 
-                              # EPIANG, data = Clapur)
+model_rough_clapur <- lm(polldiff ~ strat + CLAAMO + CLAPUR + COLLIGRA + COLLOGRA +
+                              GILCAP + MADGRA + MICGRA + EPIBRA + COLHET + PHAHET + 
+                              EPIANG, data = Clapur)
 
-#plot(Clapur$ERILAN, Clapur$polldiff)
+plot(Clapur$ERILAN, Clapur$polldiff)
 #took out ERILAN
 
 #formula
 #y~x 
 #y : polldif ~ strat + CLAAMO + CLAPUR + COLLIGRA + ....... + 
-#summary(model_rough_clapur)
+summary(model_rough_clapur)
 
-# model_rough0_clapur <- lm(polldiff ~ strat, data = Clapur)
-# summary(model_rough0_clapur)
-# 
-# model_rough2_clapur <- lm(polldiff ~ strat + dens + rich, data = Clapur)
-# summary(model_rough2_clapur)
-# 
-# anova(model_rough0_clapur, model_rough_clapur)
-#
-#model_mixed_rough_clapur <- lmer(polldiff ~ strat + (1 | S),  data = Clapur)
-#
-#model_mixed_rough_colligra <- lmer(polldiff ~ strat + (1 | S),  data = Colligra)
-#
-# isSingular(model_mixed_rough_clapur, tol = 1e-4)
-# 
-# summary(model_mixed_rough_clapur)
-# str(summary(model_mixed_rough_clapur))
-# anova(model_mixed_rough_clapur)
-# colSums(Clapur[which(names(Clapur)=="CLAAMO"):which(names(Clapur)=="EPIANG")])
-# 
-# var(Clapur$St)
-# class(Clapur$S)
-#  
-# check_model(model_mixed_rough_clapur)
-# 
-# summary(model_mixed_rough_colligra)
-# check_model(model_mixed_rough_colligra)
+model_rough0_clapur <- lm(polldiff ~ strat, data = Clapur)
+summary(model_rough0_clapur)
+
+model_rough2_clapur <- lm(polldiff ~ strat + dens + rich, data = Clapur)
+summary(model_rough2_clapur)
+
+anova(model_rough0_clapur, model_rough_clapur)
+
+Clapur$St <- as.character(Clapur$St)
+
+model_mixed_rough_clapur <- lmer(polldiff ~ strat +  
+                         + (1 | St / M),  data = Clapur)
+
+isSingular(model_mixed_rough_clapur, tol = 1e-4)
+
+summary(model_mixed_rough_clapur)
+str(summary(model_mixed_rough_clapur))
+anova(model_mixed_rough_clapur)
+colSums(Clapur[which(names(Clapur)=="CLAAMO"):which(names(Clapur)=="EPIANG")])
+
+var(Clapur$St)
+class(Clapur$S)
+ 
+check_model(model_mixed_rough_clapur)
 
 #TODO: change stand numbers to be (1,2,3,4) instead of (700, 702, 704 etc.)?
 #gonna try and use mix ($m) as a nested random effect first...
 
-Clapur_v1 <- Clapur
-Colligra_v1 <- Colligra
 
 
-Clapur_v1$St <- recode(Clapur_v1$St,'700' = 1,'604' = 1,'702' = 2,'605' = 2,'704' = 3,'607' = 3,'705' = 4,'611' = 4)
-Colligra_v1$St <- recode(Colligra_v1$St,'700' = 1,'604' = 1,'702' = 2,'605' = 2,'704' = 3,'607' = 3,'705' = 4,'611' = 4)
-
-
-Colligra_v1
-Clapur_v1
-Clapur_v1$St <- as.character(Clapur_v1$St)
-Colligra_v1$St <- as.character(Colligra_v1$St)
-Clapur_v1$St <- as.factor(Clapur_v1$St)
-Colligra_v1$St <- as.factor(Colligra_v1$St)
-
-Clapur$St <- as.character(Clapur$St)
-Colligra$St <- as.character(Colligra$St)
-Clapur$St <- as.factor(Clapur$St)
-Colligra$St <- as.factor(Colligra$St)
-##
-
-################
-#model_mixed_rough_clapur_v1 <- lmer(polldiff ~ strat +  (1 | S / St),  data = Clapur_v1)
-# summary(model_mixed_rough_clapur_v1)
-# str(summary(model_mixed_rough_clapur_v1))
-# anova(model_mixed_rough_clapur_v1)
-# check_model(model_mixed_rough_clapur_v1)
-##
-model_mixed_rough_clapur_v2 <- lmer(polldiff ~ strat +  (1 | St ),  data = Clapur)
-check_model(model_mixed_rough_clapur_v2)
-##
-#model_mixed_rough_clapur_v3 <- lmer(polldiff ~ strat +  (1 | St ),  data = Clapur_v1)
-#model_mixed_rough_clapur_v4 <- lmer(polldiff ~ strat +  (1 | S) + (1 | St),  data = Clapur_v1)
-#check_model(model_mixed_rough_clapur_v4)
-################
-
-# rand(model_mixed_rough_clapur_v1)
-# rand(model_mixed_rough_clapur_v4)
-
-# hist(Clapur_v1$polldiff)
-# hist(Colligra_v1$polldiff)
-#######
-
-#model_mixed_rough_colligra_v1 <- lmer(polldiff ~ strat + (1 | S / St),  data = Colligra_v1)
-#check_model(model_mixed_rough_colligra_v1)
-##
-model_mixed_rough_colligra_v2 <- lmer(polldiff ~ strat + (1 | St),  data = Colligra)
-##
-check_model(model_mixed_rough_colligra_v2)
-summary(model_mixed_rough_colligra_v2)
-
-#model_mixed_rough_colligra_v3 <- lmer(polldiff ~ strat + (1 | St),  data = Colligra_v1)
-#check_model(model_mixed_rough_colligra_v3)
-
-#model_mixed_rough_colligra_v4 <- lmer(polldiff ~ strat +  (1 | S) + (1 | St),  data = Colligra_v1)
-
-#graphs perchance?
-################
-
-predicted_vals_clapur_og <- predict(model_mixed_rough_clapur_v2, newdata = NULL, re.form = NULL)
-predicted_vals_colligra_og <- predict(model_mixed_rough_colligra_v2, newdata = NULL, re.form = NULL)
-
-newdata <- data.frame(strat=sample(as.factor(c("homo","het")), 138, replace=T), St=as.factor(sample(levels(Clapur$St),138, replace=T)))
-predicted_vals_clapur <- predict(model_mixed_rough_clapur_v2, newdata = newdata, re.form = NULL)
-pred <- cbind(predicted_vals_clapur,newdata)
-boxplot(predicted_vals_clapur~strat, data=pred)
-boxplot(predicted_vals_clapur_og~Clapur$strat)
-
-newdata_colligra <- data.frame(strat=sample(as.factor(c("homo","het")), 138, replace=T), St=as.factor(sample(levels(Colligra$St),138, replace=T)))
-predicted_vals_colligra <- predict(model_mixed_rough_clapur_v2, newdata = newdata, re.form = NULL)
-pred_colligra <- cbind(predicted_vals_colligra, newdata_colligra)
-boxplot(predicted_vals_colligra~strat, data=pred_colligra)
-boxplot(predicted_vals_colligra_og~Colligra$strat)
-
-predicted_vals_clapur
-predicted_vals_colligra
-
-#base graphs are here
-Clapur_graph <- ggplot(Clapur, aes(x = strat, y = polldiff)) +
-  geom_boxplot(fill="purple", alpha=0.2) +
-  geom_jitter(width = 0.2, height = 0, color = "black", size = 1) +
-  geom_line(aes(y = pred$predicted_vals_clapur, linewidth = 0.5, colour = "red")) +
-  ggtitle("Clapur Seed Difference (Open-Closed)") +
-  xlab("PollinationStrategy") +
-  ylab("Seed Difference (OseedsTotal - CseedsTotal")
-
-Clapur_graph
-
-Colligra_graph <- ggplot(Colligra, aes(x = strat, y = polldiff)) +
-  geom_boxplot(fill="skyblue", alpha=0.2) +
-  geom_jitter(width = 0.2, height = 0, color = "black", size = 1) +
-  geom_line(aes(y = pred_colligra$predicted_vals_colligra, linewidth = 0.5, colour = "red")) +
-  ggtitle("Colligra Seed Difference (Open-Closed)") +
-  xlab("PollinationStrategy") +
-  ylab("Seed Difference (OseedsTotal - CseedsTotal")
-
-Colligra_graph
-#plot(Colligra$polldiff[Colligra$strat=="het"], Colligra$polldiff[Colligra$strat=="homo"])
-
-meanperst <- Colligra %>% group_by(strat, St) %>% summarize(mean(polldiff, na.rm=T))
-homomean <- unlist(meanperst[meanperst$strat=="homo",3])
-hetmean <- unlist(meanperst[meanperst$strat=="het",3])
-plot(homomean,hetmean, col=meanperst$St, pch=19, ylim=c(0,5), xlim=c(0,5)) 
-cor(homomean,hetmean)
-lines(0:5,0:5)
-legend("topleft", legend=levels(meanperst$St), fill=meanperst$St)
